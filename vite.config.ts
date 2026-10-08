@@ -6,7 +6,7 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig(({ mode }) => {
   // Replace 'constellation' with your exact GitHub repository name (keep the slashes)
-  const base = mode === 'production' ? '/constellation/' : '/';
+  const base = mode === 'production' ? '/Constellation_Study_Graph/' : '/';
 
   return {
     base: base, // Crucial for asset paths on GitHub Pages
