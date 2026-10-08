@@ -4,8 +4,12 @@ import path from 'path';
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
-export default defineConfig(() => {
+export default defineConfig(({ mode }) => {
+  // Replace 'constellation' with your exact GitHub repository name (keep the slashes)
+  const base = mode === 'production' ? '/constellation/' : '/';
+
   return {
+    base: base, // Crucial for asset paths on GitHub Pages
     plugins: [
       react(),
       tailwindcss(),
@@ -20,30 +24,30 @@ export default defineConfig(() => {
           'pwa-maskable-512x512.png',
         ],
         manifest: {
-          id: '/',
+          id: base,
           name: 'Constellation',
           short_name: 'Constellatn',
           description: 'A personal study knowledge graph with semantic auto-linking and interactive notes.',
           theme_color: '#030712',
           background_color: '#030712',
           display: 'standalone',
-          start_url: '/',
-          scope: '/',
+          start_url: base,
+          scope: base,
           icons: [
             {
-              src: '/pwa-192x192.png',
+              src: 'pwa-192x192.png', // Removed leading slash so it relies on the injected base path
               sizes: '192x192',
               type: 'image/png',
               purpose: 'any',
             },
             {
-              src: '/pwa-512x512.png',
+              src: 'pwa-512x512.png',
               sizes: '512x512',
               type: 'image/png',
               purpose: 'any',
             },
             {
-              src: '/pwa-maskable-512x512.png',
+              src: 'pwa-maskable-512x512.png',
               sizes: '512x512',
               type: 'image/png',
               purpose: 'maskable',
@@ -51,7 +55,7 @@ export default defineConfig(() => {
           ],
         },
         workbox: {
-          globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+          globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2,wasm}'], // Added .wasm if transformers.js uses it
           runtimeCaching: [
             {
               urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
@@ -63,7 +67,7 @@ export default defineConfig(() => {
                   maxAgeSeconds: 60 * 60 * 24 * 365,
                 },
                 cacheableResponse: {
-                  statuses: [0, 200],
+                  statuses:,
                 },
               },
             },
@@ -77,7 +81,7 @@ export default defineConfig(() => {
                   maxAgeSeconds: 60 * 60 * 24 * 365,
                 },
                 cacheableResponse: {
-                  statuses: [0, 200],
+                  statuses:,
                 },
               },
             },
@@ -92,7 +96,7 @@ export default defineConfig(() => {
                   maxAgeSeconds: 60 * 60 * 24 * 180, // 6 months
                 },
                 cacheableResponse: {
-                  statuses: [0, 200],
+                  statuses:,
                 },
               },
             },
