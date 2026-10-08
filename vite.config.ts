@@ -67,7 +67,7 @@ export default defineConfig(({ mode }) => {
                   maxAgeSeconds: 60 * 60 * 24 * 365,
                 },
                 cacheableResponse: {
-                  statuses:,
+                  statuses:[0, 200],
                 },
               },
             },
@@ -81,7 +81,7 @@ export default defineConfig(({ mode }) => {
                   maxAgeSeconds: 60 * 60 * 24 * 365,
                 },
                 cacheableResponse: {
-                  statuses:,
+                  statuses:[0, 200],
                 },
               },
             },
@@ -96,7 +96,7 @@ export default defineConfig(({ mode }) => {
                   maxAgeSeconds: 60 * 60 * 24 * 180, // 6 months
                 },
                 cacheableResponse: {
-                  statuses:,
+                  statuses:[0, 200],
                 },
               },
             },
