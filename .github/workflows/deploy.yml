@@ -29,10 +29,10 @@ jobs:
           node-version: 22
 
       - name: Install dependencies
-        run: npm install
+        # 🟢 Added --legacy-peer-deps to force paste the conflicting esbuild packages
+        run: npm install --legacy-peer-deps
 
       - name: Build Application
-        # 🟢 Added explicit compilation and minification bypass switches
         run: |
           export CI=false
           export VITE_SKIP_TYPECHECK=true
