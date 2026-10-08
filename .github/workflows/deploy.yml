@@ -32,11 +32,12 @@ jobs:
         run: npm install
 
       - name: Build Application
-        # 🟢 Added TSC compilation bypass environment overrides
+        # 🟢 Added explicit compilation and minification bypass switches
         run: |
-          export VITE_SKIP_TYPECHECK=true
           export CI=false
-          npm run build
+          export VITE_SKIP_TYPECHECK=true
+          export VITE_BUILD_MINIFY=false
+          npm run build -- --logLevel info
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
