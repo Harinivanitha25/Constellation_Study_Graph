@@ -24,15 +24,15 @@ export default defineConfig(({ mode }) => {
           'pwa-maskable-512x512.png',
         ],
         manifest: {
-          id: base,
+          id: './',
           name: 'Constellation',
           short_name: 'Constellatn',
           description: 'A personal study knowledge graph with semantic auto-linking and interactive notes.',
           theme_color: '#030712',
           background_color: '#030712',
           display: 'standalone',
-          start_url: base,
-          scope: base,
+          start_url:  './',
+          scope: './',
           icons: [
             {
               src: 'pwa-192x192.png', // Removed leading slash so it relies on the injected base path
