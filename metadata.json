@@ -1,0 +1,6 @@
+{
+  "name": "Constellation",
+  "description": "A personal study knowledge graph with semantic auto-linking and interactive notes.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
