@@ -151,6 +151,24 @@ export const GraphPage: React.FC = () => {
               Rendering Constellation...
             </span>
           </div>
+        ) :topics.length === 0 ? (
+          <div className="flex flex-col items-center justify-center px-4 text-center z-20">
+            <button
+              onClick={handleOpenAdd}
+              className="group flex flex-col items-center gap-3.5 p-8 rounded-3xl bg-slate-950/80 border border-slate-800/80 hover:border-sky-400/50 shadow-2xl backdrop-blur-xl transition cursor-pointer max-w-sm hover:scale-[1.02]"
+            >
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-sky-400/20 to-indigo-600/20 border border-sky-400/30 flex items-center justify-center shadow-[0_0_24px_rgba(56,189,248,0.25)] group-hover:shadow-[0_0_30px_rgba(56,189,248,0.5)] group-hover:scale-105 transition">
+                <Sparkles className="w-7 h-7 text-sky-400" />
+              </div>
+              <p className="text-base sm:text-lg font-bold text-white tracking-wide group-hover:text-sky-300 transition">
+                Add new topic to create constellation
+              </p>
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-sky-500/20 text-sky-300 text-xs font-semibold group-hover:bg-sky-400 group-hover:text-slate-950 transition">
+                <Plus className="w-3.5 h-3.5" />
+                <span>Create Topic</span>
+              </span>
+            </button>
+          </div>
         ) : (
           <ReactFlowProvider>
             <GraphView onEditTopic={handleOpenEdit} />
