@@ -152,7 +152,7 @@ export const GraphPage: React.FC = () => {
             </span>
           </div>
         ) :topics.length === 0 ? (
-          <div className="flex flex-col items-center justify-center px-4 text-center z-20">
+          <div className="flex flex-col items-center justify-center px-4 text-center z-20 mt-20">
             <button
               onClick={handleOpenAdd}
               className="group flex flex-col items-center gap-3.5 p-8 rounded-3xl bg-slate-950/80 border border-slate-800/80 hover:border-sky-400/50 shadow-2xl backdrop-blur-xl transition cursor-pointer max-w-sm hover:scale-[1.02]"
