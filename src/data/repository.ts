@@ -63,22 +63,22 @@ export class LocalAdapter implements ITopicRepository {
     if (this.initialized) return;
 
     try {
-      const count = await db.topics.count();
-      if (count === 0) {
-        // Seed default topics and links
-        await db.transaction('rw', db.topics, db.links, async () => {
-          await db.topics.bulkAdd(INITIAL_SEEDS);
-          await db.links.bulkAdd(INITIAL_LINKS);
-        });
-      } else {
-        // Ensure demonstration topics exist if upgrading an existing IndexedDB database
-        for (const seed of INITIAL_SEEDS) {
-          const exists = await db.topics.get(seed.id);
-          if (!exists) {
-            await db.topics.add(seed);
-          }
-        }
+      // Remove any legacy default demo seed topics so the open page is clean
+      const demoSeedIds = [
+        'topic-neural-networks',
+        'topic-deep-learning',
+        'topic-cognitive-neuroscience',
+        'topic-quantum-computing',
+        'topic-cosmology-black-holes',
+        'topic-computational-origami',
+        'topic-space-telescope-arrays',
+      ];
+      for (const id of demoSeedIds) {
+        await db.topics.delete(id);
       }
+      await db.links.where('sourceTopicId').anyOf(demoSeedIds).delete();
+      await db.links.where('targetTopicId').anyOf(demoSeedIds).delete();
+
       this.initialized = true;
     } catch (err) {
       console.error('Failed to initialize local repository:', err);

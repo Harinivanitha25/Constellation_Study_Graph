@@ -1,0 +1,6 @@
+{
+  "summary":  "Implementation plan to remove the Spellcheck button and ignore popover, and replace them with an automatic 3-second debounced algorithmic typo auto-correction engine with gentle visual pulse feedback.",
+  "updatedAt":  "2026-10-28T11:09:29.921021467Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

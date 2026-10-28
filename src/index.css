@@ -165,6 +165,12 @@
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
 }
 
+.ProseMirror [data-node-view-wrapper] {
+  display: inline-flex;
+  vertical-align: top;
+  box-sizing: border-box;
+}
+
 .ProseMirror [data-node-view-wrapper] img {
   margin: 0 !important;
   border: none !important;
@@ -176,4 +182,21 @@
   border: none;
   border-top: 1px solid #1e293b;
   margin: 2rem 0;
+}
+
+@keyframes autocorrectPulse {
+  0% {
+    background-color: rgba(56, 189, 248, 0.4);
+    box-shadow: 0 0 8px rgba(56, 189, 248, 0.5);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: none;
+  }
+}
+
+.autocorrect-pulse {
+  animation: autocorrectPulse 1.8s ease-out forwards;
+  border-radius: 3px;
+  padding: 0 2px;
 }

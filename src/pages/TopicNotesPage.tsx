@@ -191,8 +191,8 @@ export const TopicNotesPage: React.FC = () => {
         </div>
       </header>
 
-      {/* Main Notepad Content Area - 75% size length across all screen sizes */}
-      <main className="flex-1 w-[75%] mx-auto px-2 sm:px-4 py-6">
+      {/* Main Notepad Content Area - 85% when screen is shrunk, 75% on large screens */}
+      <main className="flex-1 w-[85%] lg:w-[75%] mx-auto px-2 sm:px-4 py-6">
         {/* Topic Header Info */}
         <div className="mb-6">
           <div className="flex items-center justify-between gap-4 mb-2">

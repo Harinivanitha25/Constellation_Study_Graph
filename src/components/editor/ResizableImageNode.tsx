@@ -96,15 +96,34 @@ export const ResizableImageComponent: React.FC<NodeViewProps> = ({
 
   const showToolbar = selected || isHovered || isResizing || isClickedActive;
 
+  // Compute calculated width for inline flow
+  const isFullWidth = !width || width === '100%';
+  const computedWidth =
+    width === '50%'
+      ? 'calc(50% - 10px)'
+      : width === '25%'
+      ? 'calc(25% - 10px)'
+      : width === '33%'
+      ? 'calc(33.333% - 10px)'
+      : width === '75%'
+      ? 'calc(75% - 10px)'
+      : width;
+
   return (
     <NodeViewWrapper
-      className={`relative my-6 flex w-full ${alignClass} select-none`}
+      as="div"
+      className={`relative my-2 inline-flex align-top max-w-full select-none box-border p-1 ${
+        isFullWidth ? `w-full flex ${alignClass}` : ''
+      }`}
+      style={{
+        width: computedWidth,
+        verticalAlign: 'top',
+      }}
       data-drag-handle
     >
       <div
         ref={containerRef}
-        className="group relative inline-block max-w-full transition-all duration-150 pt-2"
-        style={{ width: width || '100%' }}
+        className="group relative w-full transition-all duration-150 pt-2"
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         onClick={() => setIsClickedActive(true)}
@@ -112,7 +131,7 @@ export const ResizableImageComponent: React.FC<NodeViewProps> = ({
         {/* Floating Quick Size & Alignment Toolbar */}
         {showToolbar && (
           <div
-            className="absolute -top-11 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-900/95 border border-slate-700/80 shadow-2xl backdrop-blur-md text-[11px] text-slate-300 animate-in fade-in zoom-in-95 duration-150 pointer-events-auto"
+            className="absolute -top-11 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-900/95 border border-slate-700/80 shadow-2xl backdrop-blur-md text-[11px] text-slate-300 animate-in fade-in zoom-in-95 duration-150 pointer-events-auto whitespace-nowrap"
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
             onClick={(e) => e.stopPropagation()}

@@ -21,7 +21,9 @@ import {
   Redo,
   Check,
   Loader2,
+  Sparkles,
 } from 'lucide-react';
+import { getAutoCorrection } from '../../services/autoCorrectService';
 import { topicRepository } from '../../data/repository';
 import { db } from '../../data/db';
 
@@ -81,6 +83,12 @@ export const NotepadEditor: React.FC<NotepadEditorProps> = ({
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editorContainerRef = useRef<HTMLDivElement>(null);
+  // Auto-correction state
+  const [recentCorrection, setRecentCorrection] = useState<{
+    original: string;
+    corrected: string;
+  } | null>(null);
+  const autoCorrectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const editor = useEditor({
     extensions: [
@@ -91,7 +99,7 @@ export const NotepadEditor: React.FC<NotepadEditorProps> = ({
       }),
       UnderlineExtension,
       ResizableImage.configure({
-        inline: false,
+        inline: true,
         allowBase64: true,
       }),
     ],
@@ -100,6 +108,7 @@ export const NotepadEditor: React.FC<NotepadEditorProps> = ({
       attributes: {
         class:
           'prose prose-invert prose-slate max-w-none focus:outline-none min-h-[60vh] py-6 px-2 text-slate-200 leading-relaxed text-base',
+        spellcheck: 'true',
       },
       handleDrop: (view, event, slice, moved) => {
         if (!moved && event.dataTransfer?.files?.length) {
@@ -280,6 +289,88 @@ export const NotepadEditor: React.FC<NotepadEditorProps> = ({
       container.removeEventListener('error', handleImgError, true);
     };
   }, [topicId]);
+
+  // 3-second debounced auto-correction of misspelled words
+  useEffect(() => {
+    if (!editor) return;
+
+    const handleDocUpdate = () => {
+      if (autoCorrectTimeoutRef.current) {
+        clearTimeout(autoCorrectTimeoutRef.current);
+      }
+
+      // Exactly 3 seconds of typing inactivity
+      autoCorrectTimeoutRef.current = setTimeout(() => {
+        if (!editor || editor.isDestroyed) return;
+
+        const { state } = editor;
+        const { doc, selection } = state;
+        const { from } = selection;
+
+        // Resolve paragraph/textblock surrounding current cursor
+        const resolved = doc.resolve(from);
+        const parentNode = resolved.parent;
+        if (!parentNode.isTextblock) return;
+
+        const blockStart = resolved.start();
+        const blockText = parentNode.textContent;
+        if (!blockText) return;
+
+        // Extract words with boundary indices
+        const wordRegex = /\b[a-zA-Z0-9'-]+\b/g;
+        let match: RegExpExecArray | null;
+
+        while ((match = wordRegex.exec(blockText)) !== null) {
+          const rawWord = match[0];
+          const wordStartInBlock = match.index;
+          const wordEndInBlock = wordStartInBlock + rawWord.length;
+
+          const correction = getAutoCorrection(rawWord);
+          if (correction && correction !== rawWord) {
+            const absFrom = blockStart + wordStartInBlock;
+            const absTo = blockStart + wordEndInBlock;
+
+            // Execute correction transaction in Tiptap
+            editor
+              .chain()
+              .focus()
+              .setTextSelection({ from: absFrom, to: absTo })
+              .insertContent(correction)
+              .setTextSelection(from >= absTo ? from + (correction.length - rawWord.length) : from)
+              .run();
+
+            // Set visual pulse feedback
+            setRecentCorrection({ original: rawWord, corrected: correction });
+
+            // Apply gentle cyan aura highlight pulse to the editor container
+            const container = editorContainerRef.current;
+            if (container) {
+              container.classList.add('ring-2', 'ring-sky-400/50', 'shadow-[0_0_25px_rgba(56,189,248,0.3)]');
+              setTimeout(() => {
+                container.classList.remove('ring-2', 'ring-sky-400/50', 'shadow-[0_0_25px_rgba(56,189,248,0.3)]');
+              }, 1600);
+            }
+
+            // Clear the notification badge after 4 seconds
+            setTimeout(() => {
+              setRecentCorrection((curr) => (curr?.corrected === correction ? null : curr));
+            }, 4000);
+
+            break; // Correct one word per cycle to ensure stable document state
+          }
+        }
+      }, 3000);
+    };
+
+    editor.on('update', handleDocUpdate);
+
+    return () => {
+      editor.off('update', handleDocUpdate);
+      if (autoCorrectTimeoutRef.current) {
+        clearTimeout(autoCorrectTimeoutRef.current);
+      }
+    };
+  }, [editor]);
 
   // Handle image upload -> Store Blob in IndexedDB + Convert to permanent Base64 Data URL
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -513,6 +604,14 @@ export const NotepadEditor: React.FC<NotepadEditorProps> = ({
 
         {/* Right Status Meta */}
         <div className="flex items-center gap-3 text-xs text-slate-400">
+          {recentCorrection && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-500/15 border border-sky-400/30 text-sky-300 text-xs animate-in fade-in zoom-in-95 duration-200">
+              <Sparkles className="w-3.5 h-3.5 text-sky-400 animate-pulse" />
+              <span>
+                Auto-corrected <del className="text-slate-400">{recentCorrection.original}</del> → <strong className="text-white">{recentCorrection.corrected}</strong>
+              </span>
+            </div>
+          )}
           <span>{wordCount} words</span>
           <span className="w-1 h-1 rounded-full bg-slate-700" />
           <span>{Math.ceil(wordCount / 200)} min read</span>

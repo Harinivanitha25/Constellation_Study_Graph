@@ -272,9 +272,13 @@ export const ConstellationNode: React.FC<NodeProps> = ({ id, data, selected }) =
           {/* Preview content */}
           {imageUrl ? (
             <>
-              {/* Preview Image with edit button overlay */}
-              <div className="relative w-full h-28 rounded-xl overflow-hidden mb-2.5 border border-slate-800 bg-slate-900">
-                <img src={imageUrl} alt={topic.title} className="w-full h-full object-cover" />
+              {/* Preview Image with edit button overlay - fully visible without cropping */}
+              <div className="relative w-full h-32 rounded-xl overflow-hidden mb-2.5 border border-slate-800/80 bg-[#020617] flex items-center justify-center p-1">
+                <img
+                  src={imageUrl}
+                  alt={topic.title}
+                  className="w-full h-full object-contain rounded-lg"
+                />
                 {nodeData.onEditTopic && (
                   <button
                     onClick={(e) => {
