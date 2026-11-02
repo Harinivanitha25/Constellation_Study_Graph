@@ -1,110 +1,82 @@
-# Automatic Typo Correction Engine & Spellcheck UI Removal
+# Clickable Correction Badges for Misspelled Words
 
-This plan outlines the removal of the previous manual spellcheck toolbar button and ignore popover from `NotepadEditor.tsx`, replacing them with an automatic, in-browser typo correction engine that detects and auto-fixes misspelled words 3 seconds after typing stops, accompanied by a subtle visual pulse.
-
----
+Replace silent background text alterations with non-intrusive, clickable suggestion badges that appear above verified misspelled words and typos, ensuring valid words and sentences are never altered automatically.
 
 ### User Review & Critical Decisions
 
 > [!IMPORTANT]
-> The following decisions were confirmed by the user during Phase 1:
-> - **Spellcheck UI Removal**: Completely remove the Spellcheck button, settings popover, and ignore list form from the editor toolbar.
-> - **Auto-Correct Timing**: 3 seconds of idle time after typing stops before auto-correcting misspelled words.
-> - **Correction Mechanism**: Built-in algorithmic dictionary matching with edit distance similarity (Levenshtein / Damerau-Levenshtein).
-> - **Visual Feedback**: A brief, gentle highlight pulse on the corrected word so the user is aware of what changed without disrupting typing flow.
+> The following user preferences were confirmed and will govern the new spelling assistant:
+> - **Zero Automatic Overwriting**: Stop all automatic silent text rewriting. The editor will never rewrite words or sentences in the background without explicit user consent.
+> - **Clickable Correction Badges**: When a verified misspelling or typo is typed (e.g., `teh`, `experament`, `seperate`, `definately`), a clean, unobtrusive floating suggestion badge appears directly above the word showing the best candidate (e.g. `"the"`, `"experiment"`, `"separate"`).
+> - **One-Click Replacement**: Clicking the badge instantly replaces the misspelled word and dismisses the badge.
+> - **High-Confidence Typos Only**: Detection is restricted strictly to high-confidence spelling mistakes and known typo patterns, ensuring correct words and sentences remain 100% untouched.
 
 ---
 
 ### 1. Overview & Core Concept
 
-1. **Clean Toolbar**:
-   - Strips away the manual "Spellcheck" button, popover modal, ignore list, and tag cloud from `NotepadEditor.tsx`. The toolbar returns to a clean, focused set of formatting and insert controls.
-
-2. **Algorithmic Auto-Correction (`autoCorrectService.ts`)**:
-   - Implements a fast, zero-dependency client-side spelling correction utility featuring:
-     - An integrated offline vocabulary set covering everyday English and common study/academic terms.
-     - Damerau-Levenshtein distance calculation (evaluating insertions, deletions, substitutions, and adjacent transpositions like `teh` -> `the`, `becuase` -> `because`, `definately` -> `definitely`).
-     - Case preservation (e.g., capitalizing the correction if the original word was capitalized).
-     - Punctuation preservation (e.g., keeping commas, periods, or quotation marks intact).
-
-3. **Debounced 3-Second Inline Replacement**:
-   - When the user pauses typing for 3 seconds, the editor evaluates recently modified words.
-   - If a word is misspelled and has an unambiguous high-confidence match in the dictionary, it is automatically replaced in the Tiptap document.
-   - An undo history step is preserved so the user can easily press `Ctrl+Z` if they meant to keep an unusual word or proper noun.
-   - The corrected word receives a brief, elegant cyan glow animation that smoothly fades out after 1.5 seconds.
+- **What It Does**: Shifts from a disruptive background auto-replacer to a modern, user-empowered spelling assistant. As you draft notes, the browser's native spellchecker provides red wavy underlines for misspellings, and Constellation offers a discreet, clickable suggestion pill floating above the active typo.
+- **Target Audience**: Students, researchers, and note-takers who want clean notes without their valid technical vocabulary or phrasing being accidentally altered.
+- **Key Value**: Peace of mind and full control. No more fighting against an over-eager auto-corrector that changes correct words into unwanted replacements.
 
 ---
 
 ### 2. User Experience & Visual Design
 
-#### A. Typing Workflow
-- The user writes freely without popup interruptions or manual dictionary management.
-- 3 seconds after typing ceases, any mistyped word is automatically replaced with its correct spelling.
-- Example: typing `I am studyng quantm mechanics` smoothly becomes `I am studying quantum mechanics`.
+- **Key User Flows**:
+  1. *Typing Flow*: The user writes notes freely. Correct words and standard sentences are left untouched.
+  2. *Misspelling Detection Flow*: When the user finishes typing a verified misspelled word or pauses for 1-2 seconds, a lightweight floating badge appears above the word with a subtle cyan/sky glow (e.g. `Did you mean: the?`).
+  3. *One-Click Fix Flow*: Clicking the badge (or pressing a quick shortcut) instantly swaps the typo for the corrected word and vanishes cleanly.
+  4. *Ignoring Flow*: If the user continues typing past it or clicks elsewhere, the badge quietly fades away without modifying any text.
 
-#### B. Visual Pulse Animation
-- The corrected word receives a temporary CSS glow:
-  - Background: `rgba(56, 189, 248, 0.2)` (subtle cyan aura).
-  - Transition: smooth ease-out fade to transparent over 1.5 seconds.
-  - Non-intrusive: does not shift layout or steal focus.
+- **Visual Styling**:
+  - *Badge Aesthetic*: Pill-shaped floating popover (`bg-slate-900/95 border border-sky-500/50 text-sky-300 shadow-xl backdrop-blur-md px-2 py-1 text-xs rounded-lg font-medium cursor-pointer hover:bg-sky-500/20 hover:text-white transition flex items-center gap-1.5`).
+  - *Positioning*: Positioned directly above the misspelled word using ProseMirror's `coordsAtPos` coordinates.
 
 ---
 
 ### 3. Key Product Decisions & Trade-Offs
 
-- **Decision 1: Algorithmic Levenshtein Matcher vs. Heavy ML Model**:
-  - *Chosen*: Pure algorithmic Levenshtein matching on a curated dictionary.
-  - *Why*: Instantaneous execution (< 2ms) with zero memory overhead, running purely on CPU without blocking the UI thread or downloading additional model weights.
-- **Decision 2: 3-Second Typing Debounce**:
-  - *Chosen*: 3000ms idle delay.
-  - *Why*: Prevents prematurely modifying words while the user is still in the middle of spelling them out or typing compound words.
-- **Decision 3: Case & Punctuation Preservation**:
-  - *Chosen*: Automatically preserve leading capitals and trailing punctuation.
-  - *Why*: Ensures sentences remain grammatically intact after replacement.
+- **Decision 1: Clickable Badge vs Silent Auto-Replacement**
+  - *Chosen Approach*: Display a clickable badge above the word rather than automatically mutating the document in the background.
+  - *Why*: Automatic background replacement can never guess 100% of human intent and creates severe frustration when it rewrites correct words or names. A one-click badge gives the user full control with zero friction.
+  - *Alternatives Considered*: Native right-click menu only, but browser context menus require right-clicking and can be slow or blocked.
+
+- **Decision 2: High-Confidence Typo Filtering**
+  - *Chosen Approach*: Only offer suggestions for high-confidence common typos and verified misspellings. Any word recognized in the dictionary or inflected grammar (-s, -ed, -ing, -ly) will never trigger a suggestion.
+  - *Why*: Eliminates visual clutter and ensures badges only appear when genuinely helpful.
 
 ---
 
-### 4. Technical Architecture & Component Flow
+### 4. Technical Architecture & Data Strategy
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                          AUTO-CORRECTION PIPELINE                           │
-│                                                                             │
-│   User Types in NotepadEditor.tsx                                           │
-│                 │                                                           │
-│                 ▼                                                           │
-│   Debounce Timer (3000ms idle threshold)                                    │
-│                 │ (fires after 3s of inactivity)                            │
-│                 ▼                                                           │
-│   autoCorrectService.ts                                                     │
-│   ├── Tokenize words around cursor                                          │
-│   ├── Check against dictionary                                              │
-│   └── Compute Damerau-Levenshtein similarity (distance <= 2)               │
-│                 │                                                           │
-│                 ▼                                                           │
-│   Match Found? ───► YES ───► Tiptap Transaction:                            │
-│                              • Replace misspelled range with corrected word │
-│                              • Apply brief cyan pulse highlight mark/decor  │
-│                              • Native ProseMirror History (Ctrl+Z to undo)  │
-└─────────────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────┐
+│                   NotepadEditor                        │
+│    - Listens to typing pauses (1-2s debounce)          │
+│    - Detects active misspelled words in current line   │
+│    - Computes DOM coordinates via view.coordsAtPos     │
+└──────────────────────────┬─────────────────────────────┘
+                           │
+                           ▼
+┌────────────────────────────────────────────────────────┐
+│              CorrectionBadge (Overlay HUD)             │
+│    - Floating pill above the active misspelled word    │
+│    - Shows: "Did you mean: [Corrected Word]?"          │
+│    - Click -> Executes atomic replacement in document  │
+│    - Esc / Continue typing -> Dismisses badge          │
+└────────────────────────────────────────────────────────┘
 ```
 
-#### Planned File Modifications:
-1. **`src/services/autoCorrectService.ts` (New)**:
-   - Core dictionary data structure.
-   - Damerau-Levenshtein distance algorithm.
-   - `findCorrection(word: string): string | null` function with casing and punctuation preservation.
-2. **`src/components/editor/NotepadEditor.tsx`**:
-   - Remove Spellcheck button, settings popover, ignore list form, and associated state.
-   - Wire 3-second debounced auto-correct effect into Tiptap editor changes.
-3. **`src/index.css`**:
-   - Add `@keyframes autocorrect-pulse` for the gentle highlight animation.
-
----
-
-### 5. Verification Plan
-- **Toolbar Verification**: Confirm the Spellcheck button and popover are completely gone from the toolbar.
-- **Auto-Correction Verification**: Type common typos (e.g. `computr`, `algoritm`, `thier`, `studing`) and wait 3 seconds; verify words are corrected automatically.
-- **Pulse Highlight Verification**: Confirm the corrected word briefly glows cyan and fades out cleanly.
-- **Undo Verification**: Press `Ctrl+Z` to confirm the correction can be immediately reverted.
-- **Build Verification**: Run `compile_applet` and `lint_applet` to ensure zero compilation or TypeScript errors.
+#### Key Implementation Steps:
+1. **Disable Silent Auto-Replacement**: Remove the automatic background document transaction in `NotepadEditor.tsx` so correct words and sentences are never altered behind the scenes.
+2. **Implement Suggestion Detection**:
+   - Detect active typo in the current editing context using `getAutoCorrection(rawWord)`.
+   - Calculate screen coordinates using `view.coordsAtPos(from)`.
+3. **Build Clickable Suggestion Badge**:
+   - Render a floating badge above the misspelled word showing the candidate.
+   - On click, execute a clean ProseMirror replacement transaction and dismiss.
+4. **Verification**:
+   - Verify typing valid sentences never changes any text.
+   - Verify typing a typo (e.g. `teh`, `seperate`, `experament`) displays the clickable badge.
+   - Verify clicking the badge applies the correct word cleanly.

@@ -1,7 +1,8 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import UnderlineExtension from '@tiptap/extension-underline';
+import { TextSelection } from '@tiptap/pm/state';
 import { ResizableImage } from './ResizableImageNode';
 import {
   Bold,
@@ -21,7 +22,6 @@ import {
   Redo,
   Check,
   Loader2,
-  Sparkles,
 } from 'lucide-react';
 import { getAutoCorrection } from '../../services/autoCorrectService';
 import { topicRepository } from '../../data/repository';
@@ -31,6 +31,61 @@ interface NotepadEditorProps {
   topicId: string;
   initialContent: any;
   onContentChange: (jsonContent: any, plainText: string) => void;
+}
+
+/**
+ * Sanitizes existing or imported topic note documents so that any nested images
+ * are safely hoisted to valid block siblings, preventing invalid DOM nesting and
+ * restoring flawless Enter key paragraph creation.
+ */
+function sanitizeNotesDoc(content: any): any {
+  if (!content || typeof content !== 'object' || content.type !== 'doc' || !Array.isArray(content.content)) {
+    return content || '<p></p>';
+  }
+
+  const flattenedContent: any[] = [];
+
+  for (const block of content.content) {
+    if (block.type === 'paragraph' && Array.isArray(block.content)) {
+      const hasImage = block.content.some((child: any) => child.type === 'image');
+      if (hasImage) {
+        let currentTextChildren: any[] = [];
+        for (const child of block.content) {
+          if (child.type === 'image') {
+            if (currentTextChildren.length > 0) {
+              flattenedContent.push({
+                type: 'paragraph',
+                content: currentTextChildren,
+              });
+              currentTextChildren = [];
+            }
+            flattenedContent.push(child);
+          } else {
+            currentTextChildren.push(child);
+          }
+        }
+        if (currentTextChildren.length > 0) {
+          flattenedContent.push({
+            type: 'paragraph',
+            content: currentTextChildren,
+          });
+        }
+      } else {
+        flattenedContent.push(block);
+      }
+    } else {
+      flattenedContent.push(block);
+    }
+  }
+
+  if (flattenedContent.length === 0) {
+    flattenedContent.push({ type: 'paragraph', content: [] });
+  }
+
+  return {
+    ...content,
+    content: flattenedContent,
+  };
 }
 
 /**
@@ -83,12 +138,24 @@ export const NotepadEditor: React.FC<NotepadEditorProps> = ({
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editorContainerRef = useRef<HTMLDivElement>(null);
-  // Auto-correction state
-  const [recentCorrection, setRecentCorrection] = useState<{
+  // Clickable correction badge state
+  const [activeBadge, setActiveBadge] = useState<{
+    from: number;
+    to: number;
+    original: string;
+    suggestion: string;
+    top: number;
+    left: number;
+  } | null>(null);
+  const [lastFixed, setLastFixed] = useState<{
     original: string;
     corrected: string;
   } | null>(null);
   const autoCorrectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const sanitizedContent = useMemo(() => {
+    return sanitizeNotesDoc(initialContent);
+  }, [initialContent]);
 
   const editor = useEditor({
     extensions: [
@@ -99,16 +166,31 @@ export const NotepadEditor: React.FC<NotepadEditorProps> = ({
       }),
       UnderlineExtension,
       ResizableImage.configure({
-        inline: true,
         allowBase64: true,
       }),
     ],
-    content: initialContent || '<p></p>',
+    content: sanitizedContent,
     editorProps: {
       attributes: {
         class:
           'prose prose-invert prose-slate max-w-none focus:outline-none min-h-[60vh] py-6 px-2 text-slate-200 leading-relaxed text-base',
         spellcheck: 'true',
+      },
+      handleKeyDown: (view, event) => {
+        if (event.key === 'Enter' && !event.shiftKey) {
+          const { state, dispatch } = view;
+          const { selection } = state;
+          // If an image node is selected, Enter inserts an editable paragraph immediately below
+          if ((selection as any).node && (selection as any).node.type.name === 'image') {
+            const pos = selection.to;
+            const paragraph = state.schema.nodes.paragraph.create();
+            const tr = state.tr.insert(pos, paragraph);
+            const newSelection = TextSelection.create(tr.doc, pos + 1);
+            dispatch(tr.setSelection(newSelection).scrollIntoView());
+            return true;
+          }
+        }
+        return false;
       },
       handleDrop: (view, event, slice, moved) => {
         if (!moved && event.dataTransfer?.files?.length) {
@@ -253,7 +335,7 @@ export const NotepadEditor: React.FC<NotepadEditorProps> = ({
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [editor, topicId, onContentChange]);
+  }, [editor, topicId]);
 
   // DOM image error listener: if any <img> inside the editor fails to load, heal it on the fly
   useEffect(() => {
@@ -290,87 +372,105 @@ export const NotepadEditor: React.FC<NotepadEditorProps> = ({
     };
   }, [topicId]);
 
-  // 3-second debounced auto-correction of misspelled words
+  // Clickable correction badge for recognized misspelled words
   useEffect(() => {
     if (!editor) return;
 
-    const handleDocUpdate = () => {
+    const checkSpellingAtCursor = () => {
       if (autoCorrectTimeoutRef.current) {
         clearTimeout(autoCorrectTimeoutRef.current);
       }
 
-      // Exactly 3 seconds of typing inactivity
+      // 400ms typing pause
       autoCorrectTimeoutRef.current = setTimeout(() => {
         if (!editor || editor.isDestroyed) return;
 
-        const { state } = editor;
-        const { doc, selection } = state;
+        const { state, view } = editor;
+        const { selection } = state;
         const { from } = selection;
 
-        // Resolve paragraph/textblock surrounding current cursor
-        const resolved = doc.resolve(from);
-        const parentNode = resolved.parent;
-        if (!parentNode.isTextblock) return;
+        const resolved = state.doc.resolve(from);
+        const parent = resolved.parent;
+        if (!parent.isTextblock || !parent.textContent) {
+          setActiveBadge(null);
+          return;
+        }
 
         const blockStart = resolved.start();
-        const blockText = parentNode.textContent;
-        if (!blockText) return;
-
-        // Extract words with boundary indices
+        const text = parent.textContent;
         const wordRegex = /\b[a-zA-Z0-9'-]+\b/g;
         let match: RegExpExecArray | null;
+        let foundBadge: {
+          from: number;
+          to: number;
+          original: string;
+          suggestion: string;
+          top: number;
+          left: number;
+        } | null = null;
 
-        while ((match = wordRegex.exec(blockText)) !== null) {
+        while ((match = wordRegex.exec(text)) !== null) {
           const rawWord = match[0];
-          const wordStartInBlock = match.index;
-          const wordEndInBlock = wordStartInBlock + rawWord.length;
+          const wordStart = blockStart + match.index;
+          const wordEnd = wordStart + rawWord.length;
 
-          const correction = getAutoCorrection(rawWord);
-          if (correction && correction !== rawWord) {
-            const absFrom = blockStart + wordStartInBlock;
-            const absTo = blockStart + wordEndInBlock;
-
-            // Execute correction transaction in Tiptap
-            editor
-              .chain()
-              .focus()
-              .setTextSelection({ from: absFrom, to: absTo })
-              .insertContent(correction)
-              .setTextSelection(from >= absTo ? from + (correction.length - rawWord.length) : from)
-              .run();
-
-            // Set visual pulse feedback
-            setRecentCorrection({ original: rawWord, corrected: correction });
-
-            // Apply gentle cyan aura highlight pulse to the editor container
-            const container = editorContainerRef.current;
-            if (container) {
-              container.classList.add('ring-2', 'ring-sky-400/50', 'shadow-[0_0_25px_rgba(56,189,248,0.3)]');
-              setTimeout(() => {
-                container.classList.remove('ring-2', 'ring-sky-400/50', 'shadow-[0_0_25px_rgba(56,189,248,0.3)]');
-              }, 1600);
+          // Check if cursor is on or adjacent to this word
+          if (from >= wordStart && from <= wordEnd + 2) {
+            const correction = getAutoCorrection(rawWord);
+            if (correction && correction !== rawWord) {
+              const containerRect = editorContainerRef.current?.getBoundingClientRect();
+              const startCoords = view.coordsAtPos(wordStart);
+              if (containerRect && startCoords) {
+                foundBadge = {
+                  from: wordStart,
+                  to: wordEnd,
+                  original: rawWord,
+                  suggestion: correction,
+                  top: Math.max(10, startCoords.top - containerRect.top - 44),
+                  left: Math.max(12, startCoords.left - containerRect.left),
+                };
+              }
+              break;
             }
-
-            // Clear the notification badge after 4 seconds
-            setTimeout(() => {
-              setRecentCorrection((curr) => (curr?.corrected === correction ? null : curr));
-            }, 4000);
-
-            break; // Correct one word per cycle to ensure stable document state
           }
         }
-      }, 3000);
+
+        setActiveBadge(foundBadge);
+      }, 400);
     };
 
-    editor.on('update', handleDocUpdate);
+    editor.on('update', checkSpellingAtCursor);
+    editor.on('selectionUpdate', checkSpellingAtCursor);
 
     return () => {
-      editor.off('update', handleDocUpdate);
+      editor.off('update', checkSpellingAtCursor);
+      editor.off('selectionUpdate', checkSpellingAtCursor);
       if (autoCorrectTimeoutRef.current) {
         clearTimeout(autoCorrectTimeoutRef.current);
       }
     };
   }, [editor]);
+
+  const applyBadge = (badge: {
+    from: number;
+    to: number;
+    original: string;
+    suggestion: string;
+  }) => {
+    if (!editor || editor.isDestroyed) return;
+    editor
+      .chain()
+      .focus()
+      .setTextSelection({ from: badge.from, to: badge.to })
+      .insertContent(badge.suggestion)
+      .setTextSelection(badge.from + badge.suggestion.length)
+      .run();
+    setLastFixed({ original: badge.original, corrected: badge.suggestion });
+    setActiveBadge(null);
+    setTimeout(() => {
+      setLastFixed(null);
+    }, 4000);
+  };
 
   // Handle image upload -> Store Blob in IndexedDB + Convert to permanent Base64 Data URL
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -604,11 +704,10 @@ export const NotepadEditor: React.FC<NotepadEditorProps> = ({
 
         {/* Right Status Meta */}
         <div className="flex items-center gap-3 text-xs text-slate-400">
-          {recentCorrection && (
+          {lastFixed && (
             <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-500/15 border border-sky-400/30 text-sky-300 text-xs animate-in fade-in zoom-in-95 duration-200">
-              <Sparkles className="w-3.5 h-3.5 text-sky-400 animate-pulse" />
               <span>
-                Auto-corrected <del className="text-slate-400">{recentCorrection.original}</del> → <strong className="text-white">{recentCorrection.corrected}</strong>
+                Fixed <del className="text-slate-400">{lastFixed.original}</del> → <strong className="text-white">{lastFixed.corrected}</strong>
               </span>
             </div>
           )}
@@ -637,8 +736,36 @@ export const NotepadEditor: React.FC<NotepadEditorProps> = ({
       {/* Notepad Paper Container */}
       <div
         ref={editorContainerRef}
-        className="rounded-3xl bg-slate-950/60 border border-slate-800/80 p-5 sm:p-8 md:p-12 shadow-[0_20px_50px_rgba(0,0,0,0.6),0_0_30px_rgba(56,189,248,0.05)] backdrop-blur-md min-h-[70vh]"
+        className="relative rounded-3xl bg-slate-950/60 border border-slate-800/80 p-5 sm:p-8 md:p-12 shadow-[0_20px_50px_rgba(0,0,0,0.6),0_0_30px_rgba(56,189,248,0.05)] backdrop-blur-md min-h-[70vh]"
       >
+        {/* Floating Clickable Correction Badge: "word [fix]" */}
+        {activeBadge && (
+          <div
+            style={{
+              top: `${activeBadge.top}px`,
+              left: `${activeBadge.left}px`,
+            }}
+            className="absolute z-40 flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-900/95 border border-sky-400/80 shadow-[0_6px_20px_rgba(56,189,248,0.35)] backdrop-blur-md text-xs text-white animate-in fade-in zoom-in-95 duration-150 select-none cursor-pointer hover:bg-slate-800 hover:border-sky-300 transition group pointer-events-auto"
+            onClick={() => applyBadge(activeBadge)}
+          >
+            <span className="font-semibold text-white tracking-tight">{activeBadge.suggestion}</span>
+            <span className="px-1.5 py-0.5 text-[11px] bg-sky-500/25 text-sky-300 rounded font-medium border border-sky-500/40 hover:bg-sky-500 hover:text-slate-950 transition">
+              fix
+            </span>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setActiveBadge(null);
+              }}
+              className="ml-0.5 p-0.5 rounded text-slate-400 hover:text-white transition text-xs leading-none"
+              title="Dismiss"
+            >
+              ×
+            </button>
+          </div>
+        )}
+
         <EditorContent editor={editor} />
       </div>
     </div>

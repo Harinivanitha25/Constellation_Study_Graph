@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -133,12 +133,16 @@ export const TopicNotesPage: React.FC = () => {
 
   const isLowContent = hasInsufficientText(currentTopic);
 
-  const handleContentChange = (jsonContent: any, plainText: string) => {
-    updateTopic(currentTopic.id, {
-      notesContent: jsonContent,
-      notesPlainText: plainText,
-    });
-  };
+  const handleContentChange = useCallback(
+    (jsonContent: any, plainText: string) => {
+      if (!currentTopic) return;
+      updateTopic(currentTopic.id, {
+        notesContent: jsonContent,
+        notesPlainText: plainText,
+      });
+    },
+    [currentTopic?.id, updateTopic]
+  );
 
   return (
     <div className="min-h-screen bg-[#030712] text-slate-100 flex flex-col">
@@ -242,6 +246,7 @@ export const TopicNotesPage: React.FC = () => {
 
         {/* Tiptap Rich Text Editor */}
         <NotepadEditor
+          key={currentTopic.id}
           topicId={currentTopic.id}
           initialContent={currentTopic.notesContent}
           onContentChange={handleContentChange}

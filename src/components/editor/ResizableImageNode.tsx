@@ -9,7 +9,17 @@ export const ResizableImageComponent: React.FC<NodeViewProps> = ({
   deleteNode,
   selected,
 }) => {
-  const { src, alt, title, width = '100%', alignment = 'center' } = node.attrs;
+  const { src, alt, title, alignment = 'center' } = node.attrs;
+
+  // Safely normalize width from numbers, strings, or legacy null/undefined formats
+  const rawWidth = node.attrs.width;
+  const normalizedWidth: string =
+    typeof rawWidth === 'string' && rawWidth.trim()
+      ? rawWidth
+      : typeof rawWidth === 'number'
+      ? `${rawWidth}px`
+      : '100%';
+
   const [isHovered, setIsHovered] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [isClickedActive, setIsClickedActive] = useState(false);
@@ -29,7 +39,7 @@ export const ResizableImageComponent: React.FC<NodeViewProps> = ({
     if (hoverTimeoutRef.current) {
       clearTimeout(hoverTimeoutRef.current);
     }
-    // 350ms grace period so user can smoothly move mouse between image and toolbar
+    // 350ms grace period so user can smoothly move mouse between image and floating controls
     hoverTimeoutRef.current = setTimeout(() => {
       setIsHovered(false);
     }, 350);
@@ -58,7 +68,7 @@ export const ResizableImageComponent: React.FC<NodeViewProps> = ({
 
     const startX = e.clientX;
     const parentWidth = containerRef.current?.parentElement?.clientWidth || 800;
-    const currentPercent = parseFloat(width) || 100;
+    const currentPercent = parseFloat(normalizedWidth) || 100;
 
     const handleMouseMove = (moveEvent: MouseEvent) => {
       const deltaX = (moveEvent.clientX - startX) * (direction === 'right' ? 1 : -1);
@@ -86,37 +96,30 @@ export const ResizableImageComponent: React.FC<NodeViewProps> = ({
     updateAttributes({ alignment: align });
   };
 
-  // Alignment classes for outer wrapper
-  const alignClass =
-    alignment === 'left'
-      ? 'justify-start'
-      : alignment === 'right'
-      ? 'justify-end'
-      : 'justify-center';
-
   const showToolbar = selected || isHovered || isResizing || isClickedActive;
 
-  // Compute calculated width for inline flow
-  const isFullWidth = !width || width === '100%';
+  // Compute calculated width for fluid display and side-by-side positioning
+  const isFullWidth = !normalizedWidth || normalizedWidth === '100%';
   const computedWidth =
-    width === '50%'
-      ? 'calc(50% - 10px)'
-      : width === '25%'
-      ? 'calc(25% - 10px)'
-      : width === '33%'
-      ? 'calc(33.333% - 10px)'
-      : width === '75%'
-      ? 'calc(75% - 10px)'
-      : width;
+    normalizedWidth === '50%'
+      ? 'calc(50% - 12px)'
+      : normalizedWidth === '25%'
+      ? 'calc(25% - 12px)'
+      : normalizedWidth === '33%'
+      ? 'calc(33.333% - 12px)'
+      : normalizedWidth === '75%'
+      ? 'calc(75% - 12px)'
+      : normalizedWidth;
 
   return (
     <NodeViewWrapper
       as="div"
-      className={`relative my-2 inline-flex align-top max-w-full select-none box-border p-1 ${
-        isFullWidth ? `w-full flex ${alignClass}` : ''
+      className={`relative my-2 align-top max-w-full select-none box-border p-1 ${
+        isFullWidth ? 'w-full block' : 'inline-block mr-2'
       }`}
       style={{
         width: computedWidth,
+        display: isFullWidth ? 'block' : 'inline-block',
         verticalAlign: 'top',
       }}
       data-drag-handle
@@ -147,7 +150,7 @@ export const ResizableImageComponent: React.FC<NodeViewProps> = ({
                   type="button"
                   onClick={() => setPresetWidth(preset)}
                   className={`px-1.5 py-0.5 rounded transition font-mono ${
-                    width === preset
+                    normalizedWidth === preset
                       ? 'bg-sky-500/25 text-sky-400 font-semibold border border-sky-500/30'
                       : 'hover:bg-slate-800 hover:text-white'
                   }`}
@@ -229,7 +232,7 @@ export const ResizableImageComponent: React.FC<NodeViewProps> = ({
           {/* Current Size Pill Indicator while resizing or hovering */}
           {(isResizing || isHovered) && (
             <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-slate-950/80 border border-slate-700/60 text-[10px] font-mono text-slate-300 backdrop-blur-sm pointer-events-none">
-              {width}
+              {normalizedWidth}
             </div>
           )}
         </div>
@@ -256,18 +259,29 @@ export const ResizableImageComponent: React.FC<NodeViewProps> = ({
 
 export const ResizableImage = ImageExtension.extend({
   name: 'image',
+  group: 'block',
+  draggable: true,
 
   addAttributes() {
     return {
       ...this.parent?.(),
       width: {
         default: '100%',
+        parseHTML: (element) =>
+          element.getAttribute('data-width') ||
+          element.style.width ||
+          element.getAttribute('width') ||
+          '100%',
         renderHTML: (attributes) => ({
           'data-width': attributes.width,
         }),
       },
       alignment: {
         default: 'center',
+        parseHTML: (element) =>
+          element.getAttribute('data-alignment') ||
+          element.style.textAlign ||
+          'center',
         renderHTML: (attributes) => ({
           'data-alignment': attributes.alignment,
         }),
